@@ -8,23 +8,46 @@ import (
 	"net/url"
 )
 
-const CambridgeBeerFestivalHost = "https://data.cambridgebeerfestival.com"
+const (
+	CambridgeBeerFestivalHost = "https://data.cambridgebeerfestival.com"
+	DefaultUserAgent          = "go-cbf (https://github.com/arylatt/go-cbf)"
+
+	CategoryAppleJuice        = "apple-juice"
+	CategoryBeer              = "beer"
+	CategoryCider             = "cider"
+	CategoryInternationalBeer = "international-beer"
+	CategoryMead              = "mead"
+	CategoryPerry             = "perry"
+	CategoryWine              = "wine"
+)
 
 var (
 	ErrEventOrCategoryNotFound = errors.New("the event or category does not appear to exist")
+
+	KnownCategories = []string{
+		CategoryAppleJuice,
+		CategoryBeer,
+		CategoryCider,
+		CategoryInternationalBeer,
+		CategoryMead,
+		CategoryPerry,
+		CategoryWine,
+	}
 )
 
 type WebClient struct {
-	client *http.Client
-	host   *url.URL
+	client    *http.Client
+	host      *url.URL
+	userAgent string
 }
 
 func NewWebClient(opts ...WebClientOption) (wc *WebClient, err error) {
 	hostURL, _ := url.Parse(CambridgeBeerFestivalHost)
 
 	wc = &WebClient{
-		client: &http.Client{},
-		host:   hostURL,
+		client:    &http.Client{},
+		host:      hostURL,
+		userAgent: DefaultUserAgent,
 	}
 
 	for _, opt := range opts {
@@ -46,6 +69,8 @@ func (wc *WebClient) Get(event, category string) (r *Response, err error) {
 	if err != nil {
 		return
 	}
+
+	req.Header.Set("user-agent", wc.userAgent)
 
 	resp, err := wc.client.Do(req)
 	if err != nil {
@@ -91,6 +116,15 @@ func WithHost(host string) WebClientOption {
 func WithClient(client *http.Client) WebClientOption {
 	return func(wc *WebClient) (err error) {
 		wc.client = client
+		return
+	}
+}
+
+func WithUserAgent(userAgent string) WebClientOption {
+	return func(wc *WebClient) (err error) {
+		if userAgent != "" {
+			wc.userAgent = userAgent
+		}
 		return
 	}
 }

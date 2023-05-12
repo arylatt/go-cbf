@@ -20,12 +20,13 @@ type expectedEvent struct {
 	event string
 }
 
-func testServer(t *testing.T, expectedEvent *expectedEvent) *httptest.Server {
-	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+func testServer(t *testing.T, expectedEvent *expectedEvent) (srv *httptest.Server, wc *WebClient) {
+	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := strings.Split(strings.TrimPrefix(r.URL.Path, "/"), "/")
 		event, category := path[0], path[1]
 
 		assert.Equal(t, expectedEvent.event, event)
+		assert.Equal(t, wc.userAgent, r.Header.Get("user-agent"))
 
 		fileName := fmt.Sprintf("testdata/%s", category)
 
@@ -50,6 +51,9 @@ func testServer(t *testing.T, expectedEvent *expectedEvent) *httptest.Server {
 		w.WriteHeader(http.StatusOK)
 		w.Write(file)
 	}))
+
+	wc, _ = NewWebClient(WithClient(srv.Client()), WithHost(srv.URL))
+	return
 }
 
 func TestConstCambridgeBeerFestivalHost(t *testing.T) {
@@ -66,21 +70,26 @@ func TestNewWebClient(t *testing.T) {
 	localhostStr := "http://localhost"
 	localhost, _ := url.Parse(localhostStr)
 	client := &http.Client{}
+	userAgent := "custom-ua"
 
 	tests := []struct {
 		opts   []WebClientOption
 		client *WebClient
 	}{
 		{
-			client: &WebClient{client: &http.Client{}, host: hostURL},
+			client: &WebClient{client: &http.Client{}, host: hostURL, userAgent: DefaultUserAgent},
 		},
 		{
 			opts:   []WebClientOption{WithClient(client)},
-			client: &WebClient{client: client, host: hostURL},
+			client: &WebClient{client: client, host: hostURL, userAgent: DefaultUserAgent},
 		},
 		{
 			opts:   []WebClientOption{WithHost(localhostStr)},
-			client: &WebClient{client: &http.Client{}, host: localhost},
+			client: &WebClient{client: &http.Client{}, host: localhost, userAgent: DefaultUserAgent},
+		},
+		{
+			opts:   []WebClientOption{WithUserAgent(userAgent)},
+			client: &WebClient{client: &http.Client{}, host: hostURL, userAgent: userAgent},
 		},
 	}
 
@@ -96,7 +105,7 @@ func TestWebClientGet(t *testing.T) {
 	expectedEvent := &expectedEvent{}
 	httpErr := &WebClientHTTPError{}
 
-	srv := testServer(t, expectedEvent)
+	srv, wc := testServer(t, expectedEvent)
 
 	defer srv.Close()
 
@@ -124,15 +133,21 @@ func TestWebClientGet(t *testing.T) {
 		},
 	}
 
-	srvURL, _ := url.Parse(srv.URL)
-
-	wc := WebClient{
-		client: srv.Client(),
-		host:   srvURL,
-	}
-
 	for _, test := range tests {
 		expectedEvent.event = test.event
 		test.assert(wc.Get(test.event, test.category))
 	}
+}
+
+func TestWebClientGetCustomUserAgent(t *testing.T) {
+	expectedEvent := &expectedEvent{event: "test"}
+	srv, wc := testServer(t, expectedEvent)
+
+	defer srv.Close()
+
+	wc.userAgent = "custom-ua"
+	resp, err := wc.Get(expectedEvent.event, "beer")
+
+	assert.NotNil(t, resp)
+	assert.NoError(t, err)
 }
