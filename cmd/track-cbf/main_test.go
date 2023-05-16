@@ -50,14 +50,14 @@ func TestFilename(t *testing.T) {
 		expected string
 	}{
 		{
-			time.Unix(1684262624, 0),
+			time.Unix(1684262624, 0).UTC(),
 			"test-cat",
-			"2023-05-16T19-43-44_test-cat.json",
+			"2023-05-16T18-43-44_test-cat.json",
 		},
 		{
-			time.Unix(1684262674, 0),
+			time.Unix(1684262674, 0).UTC(),
 			"cat-test",
-			"2023-05-16T19-44-34_cat-test.json",
+			"2023-05-16T18-44-34_cat-test.json",
 		},
 	}
 
