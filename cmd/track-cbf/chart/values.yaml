@@ -1,0 +1,25 @@
+image:
+  # -- The Docker image repository (and registry) to pull from.
+  repository: track-cbf
+  # -- The image pull policy.
+  pullPolicy: IfNotPresent
+  # -- The Docker image tag, defaults to the `appVersion` property of the chart.
+  tag: ""
+
+# -- The Cambridge Beer Festival event to pull data from.
+event: "cbf2023"
+
+# -- Additional arguments to pass to the container at run-time. e.g. to filter for specific drink categories:
+# <br /><br /><pre>
+# extraArgs: <br />
+# - -c <br />
+# - beer <br />
+# - -c <br />
+# - wine </pre>
+extraArgs: []
+
+# -- Local path defines where on disk to create the Persistent Volume and mount it in the container.
+localPath: "/var/lib/cbf2023/"
+
+# -- Node Affinity defines which node to create the PV and run the CronJob on.
+nodeAffinity: ns3093148
