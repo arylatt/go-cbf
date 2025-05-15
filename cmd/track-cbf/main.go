@@ -1,9 +1,11 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/signal"
 	"path"
 	"time"
 
@@ -22,13 +24,14 @@ const (
 	FlagTimeFormat = "time-format"
 	FlagOutputDir  = "output-dir"
 	FlagLogLevel   = "log-level"
+	FlagInterval   = "interval"
 
 	CfgRunTime = "run-time"
 )
 
 var (
 	trackCBFCmd = &cobra.Command{
-		Use:          "track-cbf event [-c category]... [-t time_format] [-o output_dir]",
+		Use:          fmt.Sprintf("track-cbf event [-c %s]... [-t %s] [-o %s] [-l %s] [-i %s]", FlagCategory, FlagTimeFormat, FlagOutputDir, FlagLogLevel, FlagInterval),
 		Short:        "Get the JSON data for the provided category and Cambridge Beer Festival event.",
 		Example:      "track-cbf cbf2023",
 		Args:         cobra.ExactArgs(1),
@@ -45,6 +48,7 @@ func init() {
 	trackCBFCmd.PersistentFlags().StringP(FlagTimeFormat, "t", DefaultFileTimeFormat, "Date/time format to use for file name prefixes.")
 	trackCBFCmd.PersistentFlags().StringP(FlagOutputDir, "o", "", "Directory to output files to.")
 	trackCBFCmd.PersistentFlags().StringP(FlagLogLevel, "l", zerolog.LevelInfoValue, "Log level.")
+	trackCBFCmd.PersistentFlags().DurationP(FlagInterval, "i", time.Duration(0), "How often to poll data.")
 
 	viper.BindPFlags(trackCBFCmd.PersistentFlags())
 }
@@ -112,9 +116,43 @@ func trackCBFRunE(cmd *cobra.Command, args []string) (err error) {
 		return
 	}
 
-	loop(wc, args[0])
+	ctx, cancel := context.WithCancel(cmd.Context())
+	defer cancel()
+
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, os.Interrupt)
+	defer signal.Stop(sigCh)
+
+	go func() {
+		<-sigCh
+		log.Info().Msg("Interrupt received, stopping...")
+		cancel()
+	}()
+
+	timedLoop(ctx, func() { loop(wc, args[0]) })
 
 	return
+}
+
+func timedLoop(ctx context.Context, looper func()) {
+	loopInterval := viper.GetDuration(FlagInterval)
+
+	looper()
+
+	if loopInterval == time.Duration(0) {
+		return
+	}
+
+	for {
+		log.Info().Msgf("Waiting for %s", loopInterval)
+
+		select {
+		case <-time.After(loopInterval):
+			looper()
+		case <-ctx.Done():
+			return
+		}
+	}
 }
 
 func trackCBFPreRunE(cmd *cobra.Command, args []string) (err error) {
