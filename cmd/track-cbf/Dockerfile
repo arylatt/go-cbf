@@ -6,10 +6,16 @@ WORKDIR /src
 
 RUN go build -o /app/track-cbf ./cmd/track-cbf
 
+RUN mkdir -p /data
+
 FROM gcr.io/distroless/static-debian11:nonroot
 
 COPY --from=builder /app /app
 
 WORKDIR /app
 
-ENTRYPOINT [ "/app/track-cbf" ]
+COPY --from=builder --chown=nonroot:nonroot /data /data
+
+VOLUME /data
+
+ENTRYPOINT [ "/app/track-cbf", "--output-dir", "/data" ]
